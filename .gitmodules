@@ -1,0 +1,6 @@
+[submodule "toolbelt"]
+	path = toolbelt
+	url = https://github.com/johndeedly/toolbelt.git
+[submodule "rules/yara-rules"]
+	path = rules/yara-rules
+	url = https://github.com/johndeedly/yara-rules.git
