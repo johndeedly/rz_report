@@ -24,13 +24,81 @@ namespace rz_report
             this.basePath = basePath;
         }
 
+        private IEnumerable<string> YaraRuleList()
+        {
+            IEnumerable<string> result = FindAllYaraRuleFiles();
+            result = SortRuleFiles(result);
+            IEnumerable<Tuple<string, IEnumerable<string>>> filesToRules = MapRuleFilesToContainingRules(result);
+            result = OnlyRuleFilesWithoutDuplicateRules(filesToRules);
+            return result;
+        }
+
+        private static IEnumerable<string> OnlyRuleFilesWithoutDuplicateRules(IEnumerable<Tuple<string, IEnumerable<string>>> filesToRules)
+        {
+            List<string> ruleFiles = new();
+            HashSet<string> set = new();
+            int skipped = 0;
+            foreach (var tuple in filesToRules)
+            {
+                if (!set.Overlaps(tuple.Item2))
+                {
+                    ruleFiles.Add(tuple.Item1);
+                    foreach (var elem in tuple.Item2)
+                    {
+                        set.Add(elem);
+                    }
+                }
+                else
+                {
+                    skipped++;
+                }
+            }
+            if (skipped > 0)
+                Console.WriteLine($"skipped {skipped} files with duplicate yara rules.");
+            return ruleFiles;
+        }
+
+        private static IEnumerable<Tuple<string, IEnumerable<string>>> MapRuleFilesToContainingRules(IEnumerable<string> result)
+        {
+            Regex regex = new Regex(@"rule\s+([^\s\{:]+)", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            return result.Select(x => Tuple.Create(x, File.ReadAllLines(x)
+                .Select(y => regex.Match(y))
+                .Where(y => y.Success)
+                .Select(y => y.Groups[1].Value)));
+        }
+
+        private static IEnumerable<string> SortRuleFiles(IEnumerable<string> result)
+        {
+            result = result.OrderBy(x => Path.GetFileName(x));
+            return result;
+        }
+
+        private IEnumerable<string> FindAllYaraRuleFiles()
+        {
+            IEnumerable<string> result = Enumerable.Empty<string>();
+            if (Directory.Exists("rules"))
+            {
+                result = result.Concat(Directory
+                    .EnumerateFiles("rules", "*.yar*", SearchOption.AllDirectories)
+                    .Where(x => x.EndsWith(".yar") || x.EndsWith(".yara")));
+            }
+            string assemblyRules = Path.GetDirectoryName(new Uri(Assembly.GetExecutingAssembly().Location).LocalPath) + "/rules";
+            if (Directory.Exists(assemblyRules))
+            {
+                result = result.Concat(Directory
+                    .EnumerateFiles(assemblyRules, "*.yar*", SearchOption.AllDirectories)
+                    .Where(x => x.EndsWith(".yar") || x.EndsWith(".yara")));
+            }
+            return result;
+        }
+
         public void TryYaraCheck()
         {
             var outputBuffer = new ArrayBufferWriter<byte>();
             using (var jsonWriter = new Utf8JsonWriter(outputBuffer))
             {
                 jsonWriter.WriteStartArray();
-
+                
                 IterateMatches(jsonWriter);
 
                 jsonWriter.WriteEndArray();
@@ -53,24 +121,7 @@ namespace rz_report
         {
             try
             {
-                List<string> ruleFiles = new();
-                if (Directory.Exists("rules"))
-                {
-                    ruleFiles.AddRange(Directory
-                        .EnumerateFiles("rules", "*.yar*", SearchOption.AllDirectories)
-                        .OrderBy(x => Path.GetFileName(x))
-                        .Where(x => x.EndsWith(".yar") || x.EndsWith(".yara"))
-                    );
-                }
-                string assemblyRules = Path.GetDirectoryName(new Uri(Assembly.GetExecutingAssembly().Location).LocalPath) + "/rules";
-                if (Directory.Exists(assemblyRules))
-                {
-                    ruleFiles.AddRange(Directory
-                        .EnumerateFiles(assemblyRules, "*.yar*", SearchOption.AllDirectories)
-                        .OrderBy(x => Path.GetFileName(x))
-                        .Where(x => x.EndsWith(".yar") || x.EndsWith(".yara"))
-                    );
-                }
+                IEnumerable<string> ruleFiles = YaraRuleList();
                 if (!ruleFiles.Any())
                     return;
 
