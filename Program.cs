@@ -60,10 +60,15 @@ namespace rz_report
 
                         if (CheckIsCilExecutable(rizin))
                         {
-                            var decompiler = new CSharpDecompiler(arg, new DecompilerSettings());
-                            string code = decompiler.DecompileWholeModuleAsString();
-                            string cilFileName = string.Concat(path, Path.DirectorySeparatorChar, "cil.txt");
-                            File.WriteAllText(cilFileName, code);
+                            try
+                            {
+                                var decompiler = new CSharpDecompiler(arg, new DecompilerSettings());
+                                string code = decompiler.DecompileWholeModuleAsString();
+                                string cilFileName = string.Concat(path, Path.DirectorySeparatorChar, "cil.txt");
+                                File.WriteAllText(cilFileName, code);
+                            }
+                            catch (Exception)
+                            { }
                             return;
                         }
 

@@ -1,3 +1,4 @@
+using System;
 using System.Data;
 using System.IO;
 using System.Linq;
@@ -35,14 +36,17 @@ namespace rz_report
                 int index = 0;
                 foreach (DataRow dr in dt.Rows)
                 {
-                    string name = (string)dr[".name"];
-                    decimal paddr = (decimal)dr[".paddr"];
-                    decimal size = (decimal)dr[".size"];
-
-                    using (var stream = new FileStream($"{path}/sec_{index++}_{name}.bin", FileMode.Create, FileAccess.Write, FileShare.Read))
+                    string name;
+                    decimal paddr, size;
+                    if (TryGetValue(dr, ".name", out name) &&
+                        TryGetValue(dr, ".paddr", out paddr) &&
+                        TryGetValue(dr, ".size", out size))
                     {
-                        DumpRangeToFile(paddr, size, stream);
-                        stream.Flush();
+                        using (var stream = new FileStream($"{path}/sec_{index++}_{name}.bin", FileMode.Create, FileAccess.Write, FileShare.Read))
+                        {
+                            DumpRangeToFile(paddr, size, stream);
+                            stream.Flush();
+                        }
                     }
                 }
 
@@ -57,6 +61,17 @@ namespace rz_report
                 }
             }
             UnloadMappedFileAtOffsetZero();
+        }
+
+        private static bool TryGetValue<T>(DataRow dr, string col, out T value)
+        {
+            if (dr[col] == DBNull.Value)
+            {
+                value = default(T);
+                return false;
+            }
+            value = (T)dr[col];
+            return true;
         }
 
         private decimal GetMainFileSize()

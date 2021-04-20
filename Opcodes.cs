@@ -1,3 +1,4 @@
+using System;
 using System.Data;
 using System.IO;
 using System.Linq;
@@ -24,20 +25,34 @@ namespace rz_report
                 int i = 0;
                 foreach (var dr in dt.Rows.OfType<DataRow>().Where(x => ((string)x[".perm"]).Contains("x")))
                 {
-                    string name = (string)dr[".name"];
-                    string perm = (string)dr[".perm"];
-                    decimal vaddr = (decimal)dr[".vaddr"];
-                    decimal vsize = (decimal)dr[".vsize"];
-                    
-                    using (var stream = new FileStream($"{path}/{i++}_{perm}_{name}.txt", FileMode.Create, FileAccess.Write, FileShare.Read))
+                    string name, perm;
+                    decimal vaddr, vsize;
+                    if (TryGetValue(dr, ".name", out name) &&
+                        TryGetValue(dr, ".perm", out perm) &&
+                        TryGetValue(dr, ".vaddr", out vaddr) &&
+                        TryGetValue(dr, ".vsize", out vsize))
                     {
-                        stream.Write(Encoding.UTF8.GetBytes($"[{name}]\n"));
-                        DisassembleSection(vaddr, vsize, stream);
-                        stream.WriteByte(10);
-                        stream.Flush();
+                        using (var stream = new FileStream($"{path}/{i++}_{perm}_{name}.txt", FileMode.Create, FileAccess.Write, FileShare.Read))
+                        {
+                            stream.Write(Encoding.UTF8.GetBytes($"[{name}]\n"));
+                            DisassembleSection(vaddr, vsize, stream);
+                            stream.WriteByte(10);
+                            stream.Flush();
+                        }
                     }
                 }
             }
+        }
+
+        private static bool TryGetValue<T>(DataRow dr, string col, out T value)
+        {
+            if (dr[col] == DBNull.Value)
+            {
+                value = default(T);
+                return false;
+            }
+            value = (T)dr[col];
+            return true;
         }
 
         private void DisassembleSection(decimal vaddr, decimal vsize, Stream stream)
