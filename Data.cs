@@ -50,12 +50,12 @@ namespace rz_report
                     }
                 }
 
-                decimal overlayOffset = GetOverlayOffset(dt);
-                if (overlayOffset < fileSize)
+                decimal? overlayOffset = GetOverlayOffset(dt);
+                if (overlayOffset.HasValue && overlayOffset < fileSize)
                 {
                     using (var stream = new FileStream($"{path}/sec_{index++}_overlay.bin", FileMode.Create, FileAccess.Write, FileShare.Read))
                     {
-                        DumpRangeToFile(overlayOffset, fileSize - overlayOffset, stream);
+                        DumpRangeToFile(overlayOffset.Value, fileSize - overlayOffset.Value, stream);
                         stream.Flush();
                     }
                 }
@@ -83,9 +83,15 @@ namespace rz_report
             }
         }
 
-        private static decimal GetOverlayOffset(DataTable dt)
+        private static decimal? GetOverlayOffset(DataTable dt)
         {
-            DataRow lastSection = dt.Rows.OfType<DataRow>().OrderBy(x => (decimal)x[".paddr"]).Last();
+            DataRow lastSection = dt.Rows
+                .OfType<DataRow>()
+                .Where(x => x[".paddr"] != DBNull.Value && x[".size"] != DBNull.Value)
+                .OrderBy(x => (decimal)x[".paddr"])
+                .LastOrDefault();
+            if (lastSection == null)
+                return null;
             decimal lastAddr = (decimal)lastSection[".paddr"];
             decimal lastSize = (decimal)lastSection[".size"];
             decimal overlayOffset = lastAddr + lastSize;
